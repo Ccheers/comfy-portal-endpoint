@@ -135,11 +135,12 @@ def is_allowed_client(request):
     if real_ip:
         client_ip = real_ip.strip()
 
-    # Allow localhost connections (IPv4 and IPv6)
-    allowed_ips = ['127.0.0.1', '::1', 'localhost']
+    # Get allowed IPs from environment variable
+    whitelist_env = os.getenv('COMFYUI_UPLOAD_IP_WHITELIST', '127.0.0.1,::1,localhost')
+    allowed_ips = [ip.strip() for ip in whitelist_env.split(',') if ip.strip()]
 
-    # You can also get allowed IPs from environment variable or config
-    # allowed_ips.extend(os.getenv('ALLOWED_CALLBACK_IPS', '').split(','))
+    # Log IP whitelist on first call
+    logger.info("IP whitelist: %s", ', '.join(allowed_ips))
 
     return client_ip in allowed_ips
 
