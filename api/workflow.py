@@ -119,10 +119,43 @@ async def convert_json(request):
             "details": str(e)
         }, status=500)
 
+def is_allowed_client(request):
+    """Check if the request is from an allowed client IP"""
+    # Get client IP from request
+    client_ip = request.remote
+
+    # Check X-Forwarded-For header if behind proxy
+    forwarded_for = request.headers.get('X-Forwarded-For')
+    if forwarded_for:
+        # Take the first IP in the chain
+        client_ip = forwarded_for.split(',')[0].strip()
+
+    # Check X-Real-IP header
+    real_ip = request.headers.get('X-Real-IP')
+    if real_ip:
+        client_ip = real_ip.strip()
+
+    # Allow localhost connections (IPv4 and IPv6)
+    allowed_ips = ['127.0.0.1', '::1', 'localhost']
+
+    # You can also get allowed IPs from environment variable or config
+    # allowed_ips.extend(os.getenv('ALLOWED_CALLBACK_IPS', '').split(','))
+
+    return client_ip in allowed_ips
+
 @server.routes.post("/cpe/workflow/convert/callback")
 async def convert_callback(request):
     """Internal callback to update task status and result"""
     try:
+        # Check if request is from allowed client
+        if not is_allowed_client(request):
+            client_ip = request.remote
+            logger.warning("Unauthorized callback attempt from IP: %s", client_ip)
+            return web.json_response({
+                "status": "error",
+                "message": "Unauthorized client IP"
+            }, status=400)
+
         data = await request.json()
         if not data:
             raise ValueError("Request body is required")
